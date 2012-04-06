@@ -42,6 +42,9 @@ import java.io.InputStreamReader
 import scala.tools.eclipse.util.Trim
 import org.eclipse.jdt.launching.JavaRuntime
 import org.eclipse.jdt.internal.core.util.Util
+import org.eclipse.core.runtime.Platform
+import scala.tools.eclipse.util.ExtensionPointUtils
+import scala.tools.eclipse.buildmanager.CompilerSettingsExtension
 
 trait BuildSuccessListener {
   def buildSuccessful(): Unit
@@ -51,7 +54,7 @@ object ScalaProject {
   def apply(underlying: IProject) = new ScalaProject(underlying)
 }
 
-class ScalaProject private (val underlying: IProject) extends ClasspathManagement with HasLogger {
+class ScalaProject private (val underlying: IProject) extends ClasspathManagement with ExtensionPointUtils with HasLogger {
   import ScalaPlugin.plugin
 
   private var classpathUpdate: Long = IResource.NULL_STAMP
@@ -59,6 +62,9 @@ class ScalaProject private (val underlying: IProject) extends ClasspathManagemen
   private var hasBeenBuilt = false
   
   private val buildListeners = new mutable.HashSet[BuildSuccessListener]
+
+  private final val COMPILER_SETTINGS_EXTENSION = "org.scala-ide.sdt.core.compilerSettingsExtension"
+  private lazy val compilerSettingsExtensions = discoverExtensions[CompilerSettingsExtension](COMPILER_SETTINGS_EXTENSION)
 
   case class InvalidCompilerSettings() extends RuntimeException(
         "Scala compiler cannot initialize for project: " + underlying.getName +
@@ -413,11 +419,16 @@ class ScalaProject private (val underlying: IProject) extends ClasspathManagemen
         case t: Throwable => eclipseLog.error("Unable to set setting '" + setting.name + "' to '" + value0 + "'", t)
       }
     }
-    
+
     // handle additional parameters
     val additional = store.getString(CompilerSettings.ADDITIONAL_PARAMS)
     logger.info("setting additional parameters: " + additional)
     settings.processArgumentString(additional)
+
+    // handle settings contributed via the compiler settings extension point
+    compilerSettingsExtensions foreach {
+      _.modifySettings(underlying, settings)
+    }
   }
 
   private def setupCompilerClasspath(settings: Settings) {
