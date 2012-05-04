@@ -2,7 +2,6 @@ package scala.tools.eclipse.codeanalysis
 
 import org.eclipse.core.resources.IProject
 import org.eclipse.core.runtime.{Platform, FileLocator}
-
 import scala.Option.option2Iterable
 import scala.tools.eclipse.buildmanager.CompilerSettingsExtension
 import scala.tools.nsc.Settings
